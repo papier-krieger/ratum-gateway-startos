@@ -38,6 +38,9 @@ const dict = {
   'Refuse miners while the pool is unreachable, so they fail over to their backup pool. Turn off to keep serving work without a pool': 29,
   'DATUM Protocol v3': 30,
   'Use protocol v3 (required by pools like Paperclip). Turn off for pools that only support v1': 31,
+  // solo mode (actions/configureGateway.ts)
+  'Solo Mining': 32,
+  'On: mine without a pool, and found blocks pay the Payout Address. Off: mine to the DATUM pool below. Your pool details are kept when you switch': 33,
 } as const
 
 /**

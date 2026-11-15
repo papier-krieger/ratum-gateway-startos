@@ -1,10 +1,18 @@
 import { sdk } from '../sdk'
 import { gatewayJson } from '../fileModels/gateway.json'
+import { poolProfile } from '../fileModels/poolProfile.json'
 import { i18n } from '../i18n'
 
 const { InputSpec, Value } = sdk
 
 const inputSpec = InputSpec.of({
+  soloMining: Value.toggle({
+    name: i18n('Solo Mining'),
+    description: i18n(
+      'On: mine without a pool, and found blocks pay the Payout Address. Off: mine to the DATUM pool below. Your pool details are kept when you switch',
+    ),
+    default: false,
+  }),
   rpcUrl: Value.text({
     name: i18n('Bitcoin RPC URL'),
     description: i18n('The RPC address of your Bitcoin node, e.g. https://<host>:<port>'),
@@ -36,15 +44,15 @@ const inputSpec = InputSpec.of({
   poolHost: Value.text({
     name: i18n('Pool Host'),
     description: i18n('The DATUM pool hostname, e.g. pool.example.com'),
-    required: true,
+    required: false,
     masked: false,
     default: null,
   }),
   poolPort: Value.number({
     name: i18n('Pool Port'),
     description: i18n('The DATUM pool port'),
-    required: true,
-    default: 28916,
+    required: false,
+    default: null,
     min: 1,
     max: 65535,
     step: 1,
@@ -54,7 +62,7 @@ const inputSpec = InputSpec.of({
   poolPubkey: Value.text({
     name: i18n('Pool Public Key'),
     description: i18n('The DATUM pool public key, published on the pool website'),
-    required: true,
+    required: false,
     masked: false,
     default: null,
   }),
@@ -96,20 +104,47 @@ export const configureGateway = sdk.Action.withInput(
   inputSpec,
   async ({ effects }) => {
     const g = await gatewayJson.read().once()
+    const p = await poolProfile.read().once()
+    // Solo = an address is set but the pool host is empty (a fresh install starts in pool mode).
+    const solo = !!g && g.datum.pool_host === '' && g.mining.pool_address !== ''
     return {
+      soloMining: solo,
       rpcUrl: g?.bitcoind.rpcurl,
       rpcUser: g?.bitcoind.rpcuser,
       rpcPassword: g?.bitcoind.rpcpassword,
       payoutAddress: g?.mining.pool_address,
-      poolHost: g?.datum.pool_host,
-      poolPort: g?.datum.pool_port,
-      poolPubkey: g?.datum.pool_pubkey,
+      // While solo, the pool details come from the saved profile.
+      poolHost: g?.datum.pool_host || p?.pool_host || undefined,
+      poolPort: g?.datum.pool_port || p?.pool_port || undefined,
+      poolPubkey: g?.datum.pool_pubkey || p?.pool_pubkey || undefined,
       dashboardPassword: g?.api.admin_password,
-      pooledMiningOnly: g?.datum.pooled_mining_only,
+      pooledMiningOnly: solo ? p?.pooled_mining_only : g?.datum.pooled_mining_only,
       protocolV3: g?.datum.protocol_v3,
     }
   },
   async ({ effects, input }) => {
+    const solo = input.soloMining
+    const host = (input.poolHost ?? '').trim()
+    const port = input.poolPort ?? 0
+    const pubkey = (input.poolPubkey ?? '').trim()
+    const haveProfile = host !== '' && port > 0 && pubkey !== ''
+
+    if (!solo && !haveProfile) {
+      throw new Error(
+        'Pool mode needs the Pool Host, Pool Port and Pool Public Key. Fill them in, or turn on Solo Mining.',
+      )
+    }
+
+    // Remember the pool details whenever they are complete, so Solo never loses them.
+    if (haveProfile) {
+      await poolProfile.merge(effects, {
+        pool_host: host,
+        pool_port: port,
+        pool_pubkey: pubkey,
+        pooled_mining_only: input.pooledMiningOnly,
+      })
+    }
+
     await gatewayJson.merge(effects, {
       bitcoind: {
         rpcurl: input.rpcUrl,
@@ -120,10 +155,11 @@ export const configureGateway = sdk.Action.withInput(
         pool_address: input.payoutAddress,
       },
       datum: {
-        pool_host: input.poolHost,
-        pool_port: input.poolPort,
-        pool_pubkey: input.poolPubkey,
-        pooled_mining_only: input.pooledMiningOnly,
+        // An empty host is what puts the gateway in non-pooled (solo) mode.
+        pool_host: solo ? '' : host,
+        pool_port: port,
+        pool_pubkey: pubkey,
+        pooled_mining_only: solo ? false : input.pooledMiningOnly,
         protocol_v3: input.protocolV3,
       },
       api: {
