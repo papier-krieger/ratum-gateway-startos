@@ -1,0 +1,14 @@
+node_modules/
+javascript/
+*.s9pk
+startos.bak/
+*.bak
+.env
+.env.*
+*.pem
+*.key
+developer.key.pem
+id_*
+*.log
+gateway.json
+.DS_Store
