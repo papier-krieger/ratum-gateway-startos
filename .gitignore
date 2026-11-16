@@ -12,3 +12,6 @@ id_*
 *.log
 gateway.json
 .DS_Store
+
+# Server Root CAs (public, but they name your servers): copy them into assets/ before building
+assets/*.crt

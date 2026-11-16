@@ -15,10 +15,11 @@ export const main = sdk.setupMain(async ({ effects }) => {
         mountpoint: '/data',
         readonly: false,
       })
+      // Every *.crt in assets/ is trusted: one Root CA per StartOS server that hosts the Bitcoin node.
       .mountAssets({
-        subpath: 'startos-root.crt',
-        mountpoint: '/usr/local/share/ca-certificates/startos-root.crt',
-        type: 'file',
+        subpath: null,
+        mountpoint: '/usr/local/share/ca-certificates',
+        type: 'directory',
       }),
     'ratum-subcontainer',
   )
