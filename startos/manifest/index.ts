@@ -5,10 +5,10 @@ export const manifest = setupManifest({
   id: 'ratum-gateway',
   title: 'Ratum Gateway',
   license: 'AGPL-3.0',
-  packageRepo: 'https://github.com/REPLACE_ME/ratum-gateway-startos',
+  packageRepo: 'https://github.com/papier-krieger/ratum-gateway-startos',
   upstreamRepo: 'https://github.com/iohzrd/ratum',
-  marketingUrl: 'https://REPLACE_ME',
-  donationUrl: 'https://REPLACE_ME',
+  marketingUrl: 'https://github.com/iohzrd/ratum',
+  donationUrl: null,
   description: { short, long },
   volumes: ['ratum-volume'],
   images: {
