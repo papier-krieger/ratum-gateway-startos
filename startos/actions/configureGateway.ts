@@ -2,6 +2,7 @@ import { sdk } from '../sdk'
 import { gatewayJson } from '../fileModels/gateway.json'
 import { poolProfile } from '../fileModels/poolProfile.json'
 import { i18n } from '../i18n'
+import { extraCa } from '../fileModels/extraCa'
 
 const { InputSpec, Value } = sdk
 
@@ -89,6 +90,18 @@ const inputSpec = InputSpec.of({
     ),
     default: true,
   }),
+  extraRootCa: Value.textarea({
+    name: i18n('Extra Root CA (PEM)'),
+    description: i18n(
+      'Optional. Paste the Root CA certificate (PEM text, one certificate) of another StartOS server so the gateway trusts its HTTPS address. Takes effect after a restart. Leave empty if not needed',
+    ),
+    warning: null,
+    required: false,
+    default: null,
+    minLength: null,
+    maxLength: 20000,
+    placeholder: '-----BEGIN CERTIFICATE-----',
+  }),
 })
 
 export const configureGateway = sdk.Action.withInput(
@@ -120,6 +133,7 @@ export const configureGateway = sdk.Action.withInput(
       dashboardPassword: g?.api.admin_password,
       pooledMiningOnly: solo ? p?.pooled_mining_only : g?.datum.pooled_mining_only,
       protocolV3: g?.datum.protocol_v3,
+      extraRootCa: (await extraCa.read().once()) ?? undefined,
     }
   },
   async ({ effects, input }) => {
@@ -132,6 +146,17 @@ export const configureGateway = sdk.Action.withInput(
     if (!solo && !haveProfile) {
       throw new Error(
         'Pool mode needs the Pool Host, Pool Port and Pool Public Key. Fill them in, or turn on Solo Mining.',
+      )
+    }
+
+    const ca = (input.extraRootCa ?? '').replace(/\r\n/g, '\n').trim()
+    if (
+      ca !== '' &&
+      ((ca.match(/-----BEGIN CERTIFICATE-----/g) ?? []).length !== 1 ||
+        !ca.includes('-----END CERTIFICATE-----'))
+    ) {
+      throw new Error(
+        'Extra Root CA must be exactly one PEM certificate, from -----BEGIN CERTIFICATE----- to -----END CERTIFICATE-----.',
       )
     }
 
@@ -166,5 +191,8 @@ export const configureGateway = sdk.Action.withInput(
         admin_password: input.dashboardPassword ?? '',
       },
     })
+
+    // Saved to the volume; main.ts trusts it at the next start.
+    await extraCa.write(effects, ca === '' ? '' : ca + '\n')
   },
 )

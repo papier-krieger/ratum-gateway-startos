@@ -2,6 +2,17 @@ import { i18n } from './i18n'
 import { sdk } from './sdk'
 import { stratumPort } from './utils'
 
+// Runs as root before the daemon: gathers every Root CA into the system store.
+//  - /opt/assets-ca: the package's assets (one .crt per StartOS server, read-only)
+//  - /data/extra-root-ca.crt: optional certificate pasted in Configure Gateway
+const trustScript = [
+  'mkdir -p /usr/local/share/ca-certificates',
+  'rm -f /usr/local/share/ca-certificates/extra-root-ca.crt',
+  'for f in /opt/assets-ca/*.crt; do [ -f "$f" ] && cp "$f" /usr/local/share/ca-certificates/; done',
+  '[ -s /data/extra-root-ca.crt ] && cp /data/extra-root-ca.crt /usr/local/share/ca-certificates/extra-root-ca.crt',
+  'update-ca-certificates --fresh',
+].join('; ')
+
 export const main = sdk.setupMain(async ({ effects }) => {
   console.info(i18n('Starting Ratum Gateway!'))
 
@@ -15,10 +26,10 @@ export const main = sdk.setupMain(async ({ effects }) => {
         mountpoint: '/data',
         readonly: false,
       })
-      // Every *.crt in assets/ is trusted: one Root CA per StartOS server that hosts the Bitcoin node.
+      // One Root CA per StartOS server that hosts the Bitcoin node (copied by trust-root-ca).
       .mountAssets({
         subpath: null,
-        mountpoint: '/usr/local/share/ca-certificates',
+        mountpoint: '/opt/assets-ca',
         type: 'directory',
       }),
     'ratum-subcontainer',
@@ -27,7 +38,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
   return sdk.Daemons.of(effects)
     .addOneshot('trust-root-ca', {
       subcontainer: gatewaySub,
-      exec: { command: ['update-ca-certificates'], user: 'root' },
+      exec: { command: ['sh', '-c', trustScript], user: 'root' },
       requires: [],
     })
     .addDaemon('ratum-daemon', {

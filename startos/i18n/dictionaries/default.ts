@@ -41,6 +41,9 @@ const dict = {
   // solo mode (actions/configureGateway.ts)
   'Solo Mining': 32,
   'On: mine without a pool, and found blocks pay the Payout Address. Off: mine to the DATUM pool below. Your pool details are kept when you switch': 33,
+  // extra root CA (actions/configureGateway.ts)
+  'Extra Root CA (PEM)': 34,
+  'Optional. Paste the Root CA certificate (PEM text, one certificate) of another StartOS server so the gateway trusts its HTTPS address. Takes effect after a restart. Leave empty if not needed': 35,
 } as const
 
 /**

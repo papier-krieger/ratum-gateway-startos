@@ -19,8 +19,9 @@ One action, **Configure Gateway**, holds everything you set: your Bitcoin node's
    - **Solo Mining on:** nothing more is needed. Leave the pool fields empty.
    - **Solo Mining off:** fill in the Pool Host, Pool Port and Pool Public Key. You find these on your DATUM pool's website.
 5. Optionally set a **Dashboard Password**. Without it the dashboard shows only a summary; with it you can also see the connected miners.
-6. Save, then **restart** Ratum Gateway. The gateway reads these settings only when it starts.
-7. Wait until the **Stratum Server** health check is green, then point each miner at the Stratum Server address shown on the **Interfaces** page.
+6. Only if the logs show a certificate error for your node: paste its server's Root CA certificate (PEM text, one certificate) into **Extra Root CA**.
+7. Save, then **restart** Ratum Gateway. The gateway reads these settings only when it starts.
+8. Wait until the **Stratum Server** health check is green, then point each miner at the Stratum Server address shown on the **Interfaces** page.
 
 ## Using Ratum Gateway
 
@@ -42,4 +43,4 @@ With **Pooled Mining Only** on, the gateway refuses miners while the pool is unr
 
 - In solo mode there are no pool payouts. You are paid only when your own miners find a block, and then the whole reward goes to your payout address.
 - Settings take effect only after a restart of the service.
-- The gateway trusts the Root CA certificates that were included when the package was built. If your Bitcoin node's address is not accepted because of a certificate error in the logs, the node's server may not be covered by this build.
+- The gateway trusts the Root CA certificates that were included when the package was built, plus the one you paste into **Extra Root CA**. If your Bitcoin node's address is not accepted because of a certificate error in the logs, paste that server's Root CA there and restart.

@@ -42,20 +42,20 @@ The package runs one subcontainer, `ratum-subcontainer`, with two processes star
 
 | Process           | Kind    | What it does                                                                                           |
 | ----------------- | ------- | ------------------------------------------------------------------------------------------------------ |
-| `trust-root-ca`   | oneshot | Runs `update-ca-certificates` as root, so every Root CA in the package's `assets/` folder is trusted. |
+| `trust-root-ca`   | oneshot | Copies every Root CA of the package's `assets/` folder and the optional pasted certificate into the system store, then runs `update-ca-certificates` as root. |
 | `ratum-daemon`    | daemon  | Runs `ratum-gateway -c /data/gateway.json`. Starts only after `trust-root-ca` has finished.            |
 
 No environment variables are set by the package.
 
 ## Volume and Data Layout
 
-The package has one volume, `ratum-volume`, mounted at `/data` in the subcontainer. It holds exactly two files, `gateway.json` (the gateway's configuration) and `pool-profile.json` (your saved pool details, see [File Models](#file-models)).
+The package has one volume, `ratum-volume`, mounted at `/data` in the subcontainer. It holds `gateway.json` (the gateway's configuration), `pool-profile.json` (your saved pool details) and, once you use that field, `extra-root-ca.crt` (an extra Root CA certificate). See [File Models](#file-models).
 
-The package's `assets/` folder is mounted read-only at `/usr/local/share/ca-certificates`. It is part of the package, not of the volume, and holds the Root CA certificates of the StartOS servers that host a Bitcoin node (one `.crt` file per server).
+The package's `assets/` folder is mounted read-only at `/opt/assets-ca`. It is part of the package, not of the volume, and holds the Root CA certificates of the StartOS servers that host a Bitcoin node (one `.crt` file per server).
 
 ## File Models
 
-The package owns two JSON files in `ratum-volume`. Both are seeded with defaults on the first initialization, so a fresh install already has complete files.
+The package owns two JSON files and one optional text file in `ratum-volume`. The JSON files are seeded with defaults on the first initialization, so a fresh install already has complete files.
 
 **`gateway.json`** is the gateway's own configuration file, read by the daemon **once at startup**. Nothing re-reads it while the service runs, so a change takes effect only after a restart.
 
@@ -66,9 +66,11 @@ The package owns two JSON files in `ratum-volume`. Both are seeded with defaults
 
 **`pool-profile.json`** remembers the DATUM pool details (`pool_host`, `pool_port`, `pool_pubkey`, `pooled_mining_only`). Configure Gateway writes it whenever the pool details are complete, and reads it only to prefill the form while Solo Mining is on, because `gateway.json` has no pool host in that mode. The gateway itself never reads this file. A hand edit survives, and it only affects what the form shows.
 
+**`extra-root-ca.crt`** holds the certificate pasted into the Extra Root CA field (PEM text, one certificate). It exists only after Configure Gateway has saved it, and an empty value means no extra certificate. At every start, the `trust-root-ca` step copies it into the system store next to the certificates from `assets/`, so a change needs a restart.
+
 ## Dependencies
 
-None. The package does not depend on another StartOS service. The Bitcoin node is reached over RPC by URL, username and password that you enter in Configure Gateway, so it can run on the same server, on another StartOS server or anywhere else the gateway can reach. If the node is served over HTTPS with a StartOS-issued certificate, its server's Root CA must be among the files in the package's `assets/` folder (see [Limitations and Differences](#limitations-and-differences)).
+None. The package does not depend on another StartOS service. The Bitcoin node is reached over RPC by URL, username and password that you enter in Configure Gateway, so it can run on the same server, on another StartOS server or anywhere else the gateway can reach. If the node is served over HTTPS with a StartOS-issued certificate, its server's Root CA must be trusted: either among the files in the package's `assets/` folder or pasted into the Extra Root CA field of Configure Gateway (see [Limitations and Differences](#limitations-and-differences)).
 
 ## Network Access and Interfaces
 
@@ -92,7 +94,7 @@ The order that matters: create RPC credentials on your Bitcoin node first, run C
 The package has one user-facing action, **Configure Gateway**. It carries the Solo Mining switch.
 
 - **When to run it:** at first setup, and whenever the node credentials, the payout address, the dashboard password, the DATUM protocol setting or the mode (solo or pool) changes.
-- **What it changes:** the keys of `gateway.json` listed under [File Models](#file-models), and `pool-profile.json` whenever the Pool Host, Pool Port and Pool Public Key are all filled in.
+- **What it changes:** the keys of `gateway.json` listed under [File Models](#file-models), and `pool-profile.json` whenever the Pool Host, Pool Port and Pool Public Key are all filled in, and `extra-root-ca.crt` from the Extra Root CA field (an empty field removes it).
 - **Solo Mining on:** writes an empty pool host and turns off "Pooled Mining Only", so the gateway mines without a pool and every block pays the Payout Address as a single output. The pool fields may be left empty.
 - **Solo Mining off:** pool mode. The action refuses to save unless Pool Host, Pool Port and Pool Public Key are all filled in (or were saved before), and it prefills them from the saved profile.
 - **Cost:** instant. It does **not** restart the service, so the change is not active until you restart it.
@@ -111,15 +113,15 @@ A failure right after a start usually means the gateway is still starting. If it
 
 ## Backups and Restore
 
-The backup strategy is a plain copy of the whole `ratum-volume` volume. Both files are included, so a backup contains the node's RPC password and the dashboard password as plain values inside `gateway.json`; treat backups as sensitive.
+The backup strategy is a plain copy of the whole `ratum-volume` volume. All files are included, so a backup contains the node's RPC password and the dashboard password as plain values inside `gateway.json`; treat backups as sensitive.
 
-The `assets/` folder is not in the backup, because it ships inside the package. After a restore, the gateway needs nothing rebuilt, but if you restore onto a server whose Bitcoin node uses a Root CA that is not in the package's `assets/` folder, the gateway will not trust that node until the package is rebuilt with that CA added. Restart the service after the restore, since the configuration is read at startup.
+The `assets/` folder is not in the backup, because it ships inside the package. After a restore, the gateway needs nothing rebuilt, but if you restore onto a server whose Bitcoin node uses a Root CA that is neither in the package's `assets/` folder nor in the restored `extra-root-ca.crt`, the gateway will not trust that node until you paste that CA into the Extra Root CA field or rebuild the package with it added. Restart the service after the restore, since the configuration is read at startup.
 
 ## Limitations and Differences
 
 1. **x86_64 only.** There is no build for other architectures.
 2. **One source change to upstream:** the TLS feature switch described under [Image and Container Runtime](#image-and-container-runtime). Everything else is upstream's code at one pinned commit.
-3. **Trusted Root CAs are fixed at build time.** Only the `.crt` files in the package's `assets/` folder at build time are trusted. A Bitcoin node behind an HTTPS address whose Root CA is not there fails with a certificate error until the package is rebuilt with that file added. The files are deliberately not tracked in git.
+3. **Trusted Root CAs.** The gateway trusts the `.crt` files in the package's `assets/` folder at build time, plus one optional certificate pasted into the Extra Root CA field. A Bitcoin node behind an HTTPS address whose Root CA is in neither fails with a certificate error. Only one pasted certificate is supported. The `assets/` files are deliberately not tracked in git.
 4. **Changes need a restart.** The gateway reads its configuration only at startup.
 5. **Solo mode has no pool.** Rewards arrive only when your own hardware finds a block, and then in full to the Payout Address. There are no share-based payouts.
 6. **Stratum is unencrypted.** The stratum interface serves plain TCP without TLS.
@@ -139,6 +141,7 @@ volumes:
 file_models:
   - ratum-volume/gateway.json
   - ratum-volume/pool-profile.json
+  - ratum-volume/extra-root-ca.crt
 startos_managed_env_vars: []
 dependencies: none
 interfaces:

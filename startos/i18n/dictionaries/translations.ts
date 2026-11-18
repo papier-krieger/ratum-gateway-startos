@@ -27,6 +27,8 @@ const en_extras = {
   31: 'Use protocol v3 (required by pools like Paperclip). Turn off for pools that only support v1',
   32: 'Solo Mining',
   33: 'On: mine without a pool, and found blocks pay the Payout Address. Off: mine to the DATUM pool below. Your pool details are kept when you switch',
+  34: 'Extra Root CA (PEM)',
+  35: 'Optional. Paste the Root CA certificate (PEM text, one certificate) of another StartOS server so the gateway trusts its HTTPS address. Takes effect after a restart. Leave empty if not needed',
 }
 
 export default {

@@ -24,10 +24,11 @@ To compare the pinned commit with a newer one, clone upstream and run `git log <
 1. Edit `ARG RATUM_REV=` in `Dockerfile` to the new commit hash.
 2. Check that the TLS `sed` line still matches in the new `Cargo.toml`: build once, and read the `grep minreq` output near the start of the build.
 3. Add a new file in `startos/versions/` for the package version (copy the latest one), update `startos/versions/index.ts` (`current` and `other`), and write release notes in all five locales. Versions look like `1.1.0:1` (package version, a colon, then the package revision); follow the existing files.
-4. Put each Bitcoin node server's Root CA into `assets/` as a `.crt` file before building. These files are **not tracked in git** (they are in `.gitignore`), so a fresh checkout has none.
+4. Put each Bitcoin node server's Root CA into `assets/` as a `.crt` file before building. These files are **not tracked in git** (they are in `.gitignore`), so a fresh checkout has none. A server added later does not need a rebuild: its Root CA can be pasted into the Extra Root CA field of Configure Gateway.
 5. Build with `make` (x86 only).
 6. Test on a spare StartOS server before touching production:
    - Run **Configure Gateway** and confirm that the form still loads and saves.
    - In solo mode, read `/stats.json` from the dashboard port and confirm that exactly one payout row exists, carrying the full block value and your payout address, and that the gateway reports non-pooled mode.
+   - Paste a Root CA into **Extra Root CA**, restart, and confirm that the gateway reaches a node whose CA is not in `assets/` (no "UnknownIssuer" in the logs). Empty the field again and confirm that it is removed.
    - Connect one miner and confirm accepted shares.
 7. Keep the previous `.s9pk` file as a rollback.
